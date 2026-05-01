@@ -3,13 +3,21 @@
 {% block content %}
 <div class="row">
     <div class="col-md-7">
-        <h2>Active Hunts</h2>
-        <div class="list-group mt-3">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2>Active Hunts</h2>
+            <button type="button" class="btn btn-outline-info" onclick="findHuntsNearMe()">📍 Find Hunts Near Me</button>
+        </div>
+        <p id="location-status" class="text-muted"></p>
+        
+        <div class="list-group">
             {% for hunt in hunts %}
                 <div class="list-group-item d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
                     <a href="{{ url_for('play_hunt_start', hunt_id=hunt.id) }}" class="text-decoration-none text-reset flex-grow-1 mb-2 mb-sm-0">
                         {{ hunt.name }} - Play Now!
                     </a>
+                    {% if hunt.min_distance is defined and hunt.min_distance is not none %}
+                        <span class="badge bg-secondary rounded-pill me-2">{{ "%.1f"|format(hunt.min_distance) }} miles away</span>
+                    {% endif %}
                     {% if session.is_admin %}
                     <div class="admin-actions">
                         <a href="{{ url_for('edit_hunt', hunt_id=hunt.id) }}" class="btn btn-sm btn-secondary">Edit</a>
@@ -48,4 +56,28 @@
         </div>
     </div>
 </div>
+
+<script>
+function findHuntsNearMe() {
+    const status = document.getElementById('location-status');
+    status.textContent = 'Getting your location...';
+    
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+                window.location.href = `/?lat=${lat}&lon=${lon}`;
+            },
+            function(error) {
+                status.textContent = 'Error getting location: ' + error.message;
+                status.className = 'text-danger';
+            }
+        );
+    } else {
+        status.textContent = 'Geolocation is not supported by your browser.';
+        status.className = 'text-danger';
+    }
+}
+</script>
 {% endblock %}

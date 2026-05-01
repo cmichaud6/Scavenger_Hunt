@@ -32,6 +32,12 @@
                 <label class="form-label">Clue 3 (Easiest / Most Direct)</label>
                 <input type="text" class="form-control" name="clue3" required>
             </div>
+            <div class="mb-3">
+                <button type="button" class="btn btn-outline-info" onclick="getLocation(this)">📍 Drop Location Pin</button>
+                <span class="location-status text-muted ms-2"></span>
+                <input type="hidden" name="latitude" class="lat-input">
+                <input type="hidden" name="longitude" class="lng-input">
+            </div>
         </div>
     </div>
     
@@ -63,6 +69,12 @@
             <input type="text" class="form-control" name="clue2" required></div>
             <div class="mb-3"><label class="form-label">Clue 3</label>
             <input type="text" class="form-control" name="clue3" required></div>
+            <div class="mb-3">
+                <button type="button" class="btn btn-outline-info" onclick="getLocation(this)">📍 Drop Location Pin</button>
+                <span class="location-status text-muted ms-2"></span>
+                <input type="hidden" name="latitude" class="lat-input">
+                <input type="hidden" name="longitude" class="lng-input">
+            </div>
         `;
         container.appendChild(block);
     }
@@ -93,5 +105,32 @@
             }
         }
     });
+
+    function getLocation(btn) {
+        const statusSpan = btn.nextElementSibling;
+        const latInput = statusSpan.nextElementSibling;
+        const lngInput = latInput.nextElementSibling;
+
+        if (navigator.geolocation) {
+            statusSpan.textContent = "Getting location...";
+            statusSpan.className = "location-status text-warning ms-2 fw-bold";
+            
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    latInput.value = position.coords.latitude;
+                    lngInput.value = position.coords.longitude;
+                    statusSpan.textContent = "Location pinned!";
+                    statusSpan.className = "location-status text-success ms-2 fw-bold";
+                },
+                function(error) {
+                    statusSpan.textContent = "Error: " + error.message;
+                    statusSpan.className = "location-status text-danger ms-2 fw-bold";
+                }
+            );
+        } else {
+            statusSpan.textContent = "Geolocation is not supported by this browser.";
+            statusSpan.className = "location-status text-danger ms-2 fw-bold";
+        }
+    }
 </script>
 {% endblock %}

@@ -2,6 +2,7 @@ import os
 import cv2
 import numpy as np
 import time
+import math
 from PIL import Image
 from google import genai
 from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, session
@@ -39,6 +40,8 @@ class Target(db.Model):
     clue1 = db.Column(db.String(255), nullable=False)
     clue2 = db.Column(db.String(255), nullable=False)
     clue3 = db.Column(db.String(255), nullable=False)
+    latitude = db.Column(db.Float, nullable=True)
+    longitude = db.Column(db.Float, nullable=True)
     attempts = db.relationship('Attempt', backref='target', lazy=True)
 
 class Player(db.Model):
@@ -184,10 +187,39 @@ def uploaded_file(filename):
     """Serve a file from the upload folder."""
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
+def haversine(lat1, lon1, lat2, lon2):
+    R = 3959.87433 # Earth radius in miles
+    dLat = math.radians(lat2 - lat1)
+    dLon = math.radians(lon2 - lon1)
+    lat1 = math.radians(lat1)
+    lat2 = math.radians(lat2)
+
+    a = math.sin(dLat/2)**2 + math.cos(lat1)*math.cos(lat2)*math.sin(dLon/2)**2
+    c = 2 * math.asin(math.sqrt(a))
+    return R * c
+
 @app.route('/')
 def index():
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    
     hunts = Hunt.query.all()
     
+    for hunt in hunts:
+        hunt.min_distance = None
+        
+    if lat is not None and lon is not None:
+        for hunt in hunts:
+            min_dist = float('inf')
+            for target in hunt.targets:
+                if target.latitude is not None and target.longitude is not None:
+                    dist = haversine(lat, lon, target.latitude, target.longitude)
+                    if dist < min_dist:
+                        min_dist = dist
+            hunt.min_distance = min_dist if min_dist != float('inf') else None
+            
+        hunts.sort(key=lambda x: x.min_distance if getattr(x, 'min_distance', None) is not None else float('inf'))
+
     leaderboard = db.session.query(
         Player.username,
         func.sum(Player.total_score).label('total')
@@ -207,6 +239,8 @@ def create_hunt():
         clue1s = request.form.getlist('clue1')
         clue2s = request.form.getlist('clue2')
         clue3s = request.form.getlist('clue3')
+        latitudes = request.form.getlist('latitude')
+        longitudes = request.form.getlist('longitude')
         
         for i, file in enumerate(target_images):
             if file and file.filename != '' and allowed_file(file.filename):
@@ -215,10 +249,14 @@ def create_hunt():
                 filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file.save(filepath)
                 
+                lat = float(latitudes[i]) if i < len(latitudes) and latitudes[i] else None
+                lng = float(longitudes[i]) if i < len(longitudes) and longitudes[i] else None
+                
                 target = Target(hunt_id=new_hunt.id, step_number=i+1, target_image=filename,
                                 clue1=clue1s[i] if i < len(clue1s) else '',
                                 clue2=clue2s[i] if i < len(clue2s) else '',
-                                clue3=clue3s[i] if i < len(clue3s) else '')
+                                clue3=clue3s[i] if i < len(clue3s) else '',
+                                latitude=lat, longitude=lng)
                 db.session.add(target)
         
         db.session.commit()
@@ -247,6 +285,8 @@ def edit_hunt(hunt_id):
         clue1s = request.form.getlist('clue1')
         clue2s = request.form.getlist('clue2')
         clue3s = request.form.getlist('clue3')
+        latitudes = request.form.getlist('latitude')
+        longitudes = request.form.getlist('longitude')
         
         for i, file in enumerate(target_images):
             if file and file.filename != '' and allowed_file(file.filename):
@@ -255,8 +295,12 @@ def edit_hunt(hunt_id):
                 filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file.save(filepath)
                 
+                lat = float(latitudes[i]) if i < len(latitudes) and latitudes[i] else None
+                lng = float(longitudes[i]) if i < len(longitudes) and longitudes[i] else None
+                
                 target = Target(hunt_id=hunt.id, step_number=i+1, target_image=filename,
-                                clue1=clue1s[i], clue2=clue2s[i], clue3=clue3s[i])
+                                clue1=clue1s[i], clue2=clue2s[i], clue3=clue3s[i],
+                                latitude=lat, longitude=lng)
                 db.session.add(target)
         
         db.session.commit()

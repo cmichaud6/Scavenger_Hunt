@@ -379,16 +379,85 @@ LAYOUT_HTML = r"""<!DOCTYPE html>
 INDEX_HTML = r"""{% extends 'layout.html' %}
 
 {% block content %}
-<h2>Active Hunts</h2>
-<div class="list-group mt-3">
-    {% for hunt in hunts %}
-        <a href="{{ url_for('play_hunt', hunt_id=hunt.id) }}" class="list-group-item list-group-item-action">
-            Hunt #{{ hunt.id }} - Play Now!
-        </a>
-    {% else %}
-        <p>No hunts available yet. Be the first to <a href="/create">create one</a>!</p>
-    {% endfor %}
+<div class="row">
+    <div class="col-md-7">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2>Active Hunts</h2>
+            <button type="button" class="btn btn-outline-info" onclick="findHuntsNearMe()">📍 Find Hunts Near Me</button>
+        </div>
+        <p id="location-status" class="text-muted"></p>
+        
+        <div class="list-group">
+            {% for hunt in hunts %}
+                <div class="list-group-item d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
+                    <a href="{{ url_for('play_hunt_start', hunt_id=hunt.id) }}" class="text-decoration-none text-reset flex-grow-1 mb-2 mb-sm-0">
+                        {{ hunt.name }} - Play Now!
+                    </a>
+                    {% if hunt.min_distance is defined and hunt.min_distance is not none %}
+                        <span class="badge bg-secondary rounded-pill me-2">{{ "%.1f"|format(hunt.min_distance) }} miles away</span>
+                    {% endif %}
+                    {% if session.is_admin %}
+                    <div class="admin-actions">
+                        <a href="{{ url_for('edit_hunt', hunt_id=hunt.id) }}" class="btn btn-sm btn-secondary">Edit</a>
+                        <form action="{{ url_for('delete_hunt', hunt_id=hunt.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this hunt?');">
+                            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+            {% else %}
+                <p>No hunts available yet. Be the first to <a href="/create">create one</a>!</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="col-md-5 mt-5 mt-md-0">
+        <h2>Global Leaderboard</h2>
+        <div class="card mt-3">
+            <ul class="list-group list-group-flush">
+                {% for row in leaderboard %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center p-3">
+                        <a href="{{ url_for('user_details', username=row.username) }}" class="fw-bold text-decoration-none text-primary">{{ row.username }}</a>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-primary rounded-pill">{{ row.total }} pts</span>
+                            {% if session.is_admin %}
+                            <form action="{{ url_for('delete_player', username=row.username) }}" method="POST" class="m-0" onsubmit="return confirm('Are you sure you want to delete this user and all their scores?');">
+                                <button type="submit" class="btn btn-sm btn-danger">&times;</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </li>
+                {% else %}
+                    <li class="list-group-item text-muted">No completed hunts yet.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
 </div>
+
+<script>
+function findHuntsNearMe() {
+    const status = document.getElementById('location-status');
+    status.textContent = 'Getting your location...';
+    
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+                window.location.href = `/?lat=${lat}&lon=${lon}`;
+            },
+            function(error) {
+                status.textContent = 'Error getting location: ' + error.message;
+                status.className = 'text-danger';
+            }
+        );
+    } else {
+        status.textContent = 'Geolocation is not supported by your browser.';
+        status.className = 'text-danger';
+    }
+}
+</script>
 {% endblock %}
 """
 
@@ -397,6 +466,11 @@ CREATE_HTML = r"""{% extends 'layout.html' %}
 {% block content %}
 <h2>Create a New Scavenger Hunt</h2>
 <form method="POST" enctype="multipart/form-data" class="mt-4">
+    <div class="mb-3">
+        <label for="hunt_name" class="form-label">Hunt Name</label>
+        <input type="text" class="form-control" id="hunt_name" name="hunt_name" placeholder="E.g., Downtown Adventure" required>
+    </div>
+
     <div class="mb-3">
         <label for="target_image" class="form-label">Target Image (What players need to find)</label>
         <input type="file" class="form-control" id="target_image" name="target_image" accept="image/png, image/jpeg" required>
@@ -413,35 +487,94 @@ CREATE_HTML = r"""{% extends 'layout.html' %}
         <label for="clue3" class="form-label">Clue 3 (Easiest / Most Direct)</label>
         <input type="text" class="form-control" id="clue3" name="clue3" required>
     </div>
+    
+    <div class="mb-3">
+        <button type="button" class="btn btn-outline-info" onclick="getLocation(this)">
+            📍 Drop Location Pin
+        </button>
+        <span class="location-status text-muted ms-2"></span>
+        <input type="hidden" name="latitude" class="lat-input">
+        <input type="hidden" name="longitude" class="lng-input">
+    </div>
+    
     <button type="submit" class="btn btn-primary">Create Hunt</button>
 </form>
+
+<script>
+function getLocation(btn) {
+    const statusSpan = btn.nextElementSibling;
+    const latInput = statusSpan.nextElementSibling;
+    const lngInput = latInput.nextElementSibling;
+
+    if (navigator.geolocation) {
+        statusSpan.textContent = "Getting location...";
+        statusSpan.className = "location-status text-warning ms-2 fw-bold";
+        
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                latInput.value = position.coords.latitude;
+                lngInput.value = position.coords.longitude;
+                
+                statusSpan.textContent = "Location pinned!";
+                statusSpan.className = "location-status text-success ms-2 fw-bold";
+            },
+            function(error) {
+                statusSpan.textContent = "Error: " + error.message;
+                statusSpan.className = "location-status text-danger ms-2 fw-bold";
+            }
+        );
+    } else {
+        statusSpan.textContent = "Geolocation is not supported by this browser.";
+        statusSpan.className = "location-status text-danger ms-2 fw-bold";
+    }
+}
+</script>
 {% endblock %}
 """
 
 PLAY_HTML = r"""{% extends 'layout.html' %}
 
 {% block content %}
-<h2>Play Hunt #{{ hunt.id }}</h2>
+<div class="d-flex justify-content-between align-items-center">
+    <h2>Play: {{ hunt.name }}</h2>
+    <h4><span class="badge bg-info text-dark">Current Score: {{ player.total_score }}</span></h4>
+</div>
+
+<div class="card mt-4 mb-4">
+    <div class="card-header">Image to Find</div>
+    <div class="card-body text-center">
+        <img src="{{ url_for('uploaded_file', filename=target.target_image) }}" class="img-fluid rounded" alt="Target Image" style="max-height: 400px;">
+    </div>
+</div>
 
 <div class="card mt-4 mb-4">
     <div class="card-header">Clues</div>
     <div class="card-body">
-        <p id="display-clue1" class="fw-bold">1. {{ hunt.clue1 }}</p>
-        <p id="display-clue2" class="fw-bold text-muted" style="display: none;">2. {{ hunt.clue2 }}</p>
-        <p id="display-clue3" class="fw-bold text-muted" style="display: none;">3. {{ hunt.clue3 }}</p>
+        <p id="display-clue1" class="fw-bold">1. {{ target.clue1 }}</p>
+        <p id="display-clue2" class="fw-bold text-muted" style="display: none;">2. {{ target.clue2 }}</p>
+        <p id="display-clue3" class="fw-bold text-muted" style="display: none;">3. {{ target.clue3 }}</p>
         
-        <button type="button" class="btn btn-warning" id="revealBtn" onclick="revealNextClue()">Reveal Next Clue</button>
+        <div class="d-grid gap-2 d-md-block mt-3">
+            <button type="button" class="btn btn-warning" id="revealBtn" onclick="revealNextClue()">Reveal Next Clue</button>
         </div>
     </div>
 </div>
 
-<form method="POST" enctype="multipart/form-data">
+<form method="POST" enctype="multipart/form-data" class="mb-5">
     <input type="hidden" id="clues_used" name="clues_used" value="1">
+    <!-- This input is hidden from the user -->
+    <input type="file" id="attempt_image" name="attempt_image" accept="image/*" required style="display: none;">
+
     <div class="mb-3">
-        <label for="attempt_image" class="form-label">Upload your photo attempt</label>
-        <input type="file" class="form-control" id="attempt_image" name="attempt_image" accept="image/png, image/jpeg" required>
+        <label class="form-label">Upload Your Photo Attempt</label>
+        <div class="d-grid gap-2 d-md-flex">
+            <button type="button" class="btn btn-secondary" id="uploadBtn">Upload from Library</button>
+            <button type="button" class="btn btn-info" id="captureBtn">Take Photo with Camera</button>
+        </div>
+        <p id="file-info" class="text-muted mt-2 mb-0">No file selected.</p>
     </div>
-    <div tton>
+    <div class="d-grid gap-2 d-md-block">
+        <button type="submit" class="btn btn-success">Submit Attempt</button>
     </div>
 </form>
 
@@ -458,6 +591,29 @@ PLAY_HTML = r"""{% extends 'layout.html' %}
         }
         document.getElementById('clues_used').value = cluesRevealed;
     }
+
+    const fileInput = document.getElementById('attempt_image');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const captureBtn = document.getElementById('captureBtn');
+    const fileInfo = document.getElementById('file-info');
+
+    uploadBtn.addEventListener('click', () => {
+        fileInput.removeAttribute('capture');
+        fileInput.click();
+    });
+
+    captureBtn.addEventListener('click', () => {
+        fileInput.setAttribute('capture', 'environment'); // 'environment' for back camera
+        fileInput.click();
+    });
+
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files.length > 0) {
+            fileInfo.textContent = `Selected: ${fileInput.files[0].name}`;
+            fileInfo.classList.remove('text-muted');
+            fileInfo.classList.add('text-success', 'fw-bold');
+        }
+    });
 </script>
 {% endblock %}
 """
