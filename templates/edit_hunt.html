@@ -1,0 +1,63 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<h2>Edit Scavenger Hunt</h2>
+<form method="POST" enctype="multipart/form-data" class="mt-4">
+    <div class="mb-3">
+        <label for="hunt_name" class="form-label">Hunt Name</label>
+        <input type="text" class="form-control" id="hunt_name" name="hunt_name" value="{{ hunt.name }}" required>
+    </div>
+
+    <div id="targets-container">
+        {% for target in hunt.targets %}
+        <div class="target-block border p-3 mb-3 bg-light">
+            <h4>Photo {{ loop.index }}</h4>
+            <div class="mb-3">
+                <p class="mb-1"><small>Current Image: {{ target.target_image }}</small></p>
+                <label class="form-label">Replace Target Image</label>
+                <input type="file" class="form-control" name="target_image" accept="image/png, image/jpeg" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Clue 1</label>
+                <input type="text" class="form-control" name="clue1" value="{{ target.clue1 }}" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Clue 2</label>
+                <input type="text" class="form-control" name="clue2" value="{{ target.clue2 }}" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Clue 3</label>
+                <input type="text" class="form-control" name="clue3" value="{{ target.clue3 }}" required>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div class="d-grid gap-2 d-md-block mb-3">
+        <button type="button" class="btn btn-secondary" onclick="addTarget()">+ Add Another Photo</button>
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+    </div>
+</form>
+
+<script>
+    let targetCount = {{ hunt.targets|length }};
+    function addTarget() {
+        targetCount++;
+        const container = document.getElementById('targets-container');
+        const block = document.createElement('div');
+        block.className = 'target-block border p-3 mb-3 bg-light';
+        block.innerHTML = `
+            <h4>Photo ${targetCount}</h4>
+            <div class="mb-3"><label class="form-label">Target Image</label>
+            <input type="file" class="form-control" name="target_image" accept="image/png, image/jpeg" required></div>
+            <div class="mb-3"><label class="form-label">Clue 1</label>
+            <input type="text" class="form-control" name="clue1" required></div>
+            <div class="mb-3"><label class="form-label">Clue 2</label>
+            <input type="text" class="form-control" name="clue2" required></div>
+            <div class="mb-3"><label class="form-label">Clue 3</label>
+            <input type="text" class="form-control" name="clue3" required></div>
+        `;
+        container.appendChild(block);
+    }
+</script>
+{% endblock %}

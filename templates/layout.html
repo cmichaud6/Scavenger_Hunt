@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo Scavenger Hunt</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+
+        :root {
+            --bs-body-font-family: 'Roboto', sans-serif;
+            /* Blue Color Scheme */
+            --m3-surface: #F4F8FB;
+            --m3-surface-container: #E3EFFF;
+            --m3-on-surface: #1E293B;
+            --m3-primary: #1976D2;
+            --m3-primary-hover: #1565C0;
+            --m3-secondary: #0288D1;
+            --m3-success: #2E7D32;
+            --m3-warning: #ED6C02;
+            --m3-outline: #90CAF9;
+        }
+
+        body {
+            background-color: var(--m3-surface);
+            color: var(--m3-on-surface);
+            font-family: var(--bs-body-font-family);
+        }
+
+        /* Material 3 App Bar */
+        .navbar.bg-dark {
+            background-color: var(--m3-primary) !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            padding-top: 12px;
+            padding-bottom: 12px;
+            margin-bottom: 24px;
+            border-bottom: none;
+        }
+        .navbar-dark .navbar-brand, 
+        .navbar-dark .nav-link {
+            color: #ffffff !important;
+            font-weight: 500;
+        }
+
+        /* Material 3 Expressive Cards */
+        .card {
+            border: 1px solid #dee2e6;
+            border-radius: 16px;
+            background-color: var(--m3-surface-container);
+            box-shadow: none;
+            overflow: hidden;
+        }
+        .card-header {
+            background-color: transparent;
+            border-bottom: 1px solid #dee2e6;
+            font-size: 1.1rem;
+            font-weight: 500;
+            padding: 16px 24px;
+        }
+        .card-body {
+            padding: 24px;
+        }
+
+        /* Material 3 Buttons */
+        .btn {
+            border-radius: 100px; /* Fully rounded pill shape */
+            padding: 10px 24px;
+            font-weight: 500;
+            border: none;
+            transition: all 0.2s ease;
+        }
+        .btn-primary { background-color: var(--m3-primary); color: #fff; }
+        .btn-primary:hover { background-color: var(--m3-primary-hover); box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
+        .btn-success { background-color: #386A20; color: #fff; }
+        .btn-warning { background-color: var(--m3-warning); color: #fff; }
+        .btn-info { background-color: var(--m3-secondary); color: #fff; }
+        .btn-secondary { background-color: #625B71; color: #fff; }
+
+        /* Material 3 Filled Inputs */
+        .form-control {
+            border-radius: 4px;
+            padding: 16px;
+            background-color: var(--m3-surface);
+            border: 1px solid var(--m3-outline);
+            box-shadow: none !important;
+        }
+        .form-control:focus {
+            background-color: var(--m3-surface);
+            border-color: var(--m3-primary);
+            box-shadow: 0 0 0 2px var(--m3-primary, 0.25) !important;
+        }
+        .form-label {
+            font-weight: 500;
+            color: var(--m3-on-surface);
+        }
+
+        /* Expressive Lists */
+        .list-group-item {
+            border: 1px solid #dee2e6;
+            margin-bottom: 8px;
+            border-radius: 12px !important;
+            background-color: var(--m3-surface-container);
+        }
+        .list-group-item.list-group-item-action:hover {
+            background-color: #BBDEFB;
+        }
+        .list-group { background: transparent; }
+
+        /* Flashed messages */
+        .alert-info {
+            background-color: var(--m3-surface-container);
+            color: var(--m3-on-surface);
+            border: 1px solid var(--m3-primary);
+            border-radius: 12px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">Scavenger Hunt</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <div class="navbar-nav ms-auto">
+                    <a class="nav-link" href="/create">Create Hunt</a>
+                    {% if session.is_admin %}
+                    <a class="nav-link" href="{{ url_for('admin_logout') }}">Admin Logout</a>
+                    {% else %}
+                    <a class="nav-link" href="{{ url_for('admin_login') }}">Admin Login</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+    <div class="container mt-4">
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-info">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        {% block content %}{% endblock %}
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

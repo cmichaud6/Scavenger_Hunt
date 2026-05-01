@@ -1,0 +1,84 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center">
+    <h2>Play: {{ hunt.name }} (Step {{ target.step_number }})</h2>
+    <h4><span class="badge bg-info text-dark">Current Score: {{ player.total_score }}</span></h4>
+</div>
+
+<div class="card mt-4 mb-4">
+    <div class="card-header">Image to Find</div>
+    <div class="card-body text-center">
+        <img src="{{ url_for('uploaded_file', filename=target.target_image) }}" class="img-fluid rounded" alt="Target Image" style="max-height: 400px;">
+    </div>
+</div>
+
+<div class="card mt-4 mb-4">
+    <div class="card-header">Clues</div>
+    <div class="card-body">
+        <p id="display-clue1" class="fw-bold">1. {{ target.clue1 }}</p>
+        <p id="display-clue2" class="fw-bold text-muted" style="display: none;">2. {{ target.clue2 }}</p>
+        <p id="display-clue3" class="fw-bold text-muted" style="display: none;">3. {{ target.clue3 }}</p>
+        
+        <div class="d-grid gap-2 d-md-block mt-3">
+            <button type="button" class="btn btn-warning" id="revealBtn" onclick="revealNextClue()">Reveal Next Clue</button>
+        </div>
+    </div>
+</div>
+
+<form method="POST" enctype="multipart/form-data" class="mb-5">
+    <input type="hidden" id="clues_used" name="clues_used" value="1">
+    <!-- This input is hidden from the user -->
+    <input type="file" id="attempt_image" name="attempt_image" accept="image/*" required style="display: none;">
+
+    <div class="mb-3">
+        <label class="form-label">Upload Your Photo Attempt</label>
+        <div class="d-grid gap-2 d-md-flex">
+            <button type="button" class="btn btn-secondary" id="uploadBtn">Upload from Library</button>
+            <button type="button" class="btn btn-info" id="captureBtn">Take Photo with Camera</button>
+        </div>
+        <p id="file-info" class="text-muted mt-2 mb-0">No file selected.</p>
+    </div>
+    <div class="d-grid gap-2 d-md-block">
+        <button type="submit" class="btn btn-success">Submit Attempt</button>
+    </div>
+</form>
+
+<script>
+    let cluesRevealed = 1;
+    function revealNextClue() {
+        if (cluesRevealed === 1) {
+            document.getElementById('display-clue2').style.display = 'block';
+            cluesRevealed = 2;
+        } else if (cluesRevealed === 2) {
+            document.getElementById('display-clue3').style.display = 'block';
+            cluesRevealed = 3;
+            document.getElementById('revealBtn').style.display = 'none';
+        }
+        document.getElementById('clues_used').value = cluesRevealed;
+    }
+
+    const fileInput = document.getElementById('attempt_image');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const captureBtn = document.getElementById('captureBtn');
+    const fileInfo = document.getElementById('file-info');
+
+    uploadBtn.addEventListener('click', () => {
+        fileInput.removeAttribute('capture');
+        fileInput.click();
+    });
+
+    captureBtn.addEventListener('click', () => {
+        fileInput.setAttribute('capture', 'environment'); // 'environment' for back camera
+        fileInput.click();
+    });
+
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files.length > 0) {
+            fileInfo.textContent = `Selected: ${fileInput.files[0].name}`;
+            fileInfo.classList.remove('text-muted');
+            fileInfo.classList.add('text-success', 'fw-bold');
+        }
+    });
+</script>
+{% endblock %}
