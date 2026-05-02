@@ -54,7 +54,7 @@ def calculate_score(clues_used, is_successful):
     elif clues_used >= 3: return 25
     return 0
 
-def verify_match(target_path, attempt_path, min_match_count=10, min_inliers=8, ratio_thresh=0.75):
+def verify_match(target_path, attempt_path, min_match_count=15, min_inliers=10, ratio_thresh=0.75):
     # Use Gemini API for smart, semantic image matching if an API key is provided
     if client:
         try:
@@ -78,7 +78,8 @@ def verify_match(target_path, attempt_path, min_match_count=10, min_inliers=8, r
                     text_response = response.text.strip().lower()
                     
                     print(f"DEBUG: Gemini Vision API result: {response.text}")
-                    if 'true' in text_response:
+                    # Check strictly to avoid false positives (e.g. "False. It is not true...")
+                    if text_response.startswith('true') or ('true' in text_response and 'false' not in text_response):
                         return True
                     return False
                 except Exception as e:
@@ -110,13 +111,13 @@ def verify_match(target_path, attempt_path, min_match_count=10, min_inliers=8, r
         img1 = resize_img(img1)
         img2 = resize_img(img2)
 
-        orb = cv2.ORB_create(nfeatures=2000)
-        kp1, des1 = orb.detectAndCompute(img1, None)
-        kp2, des2 = orb.detectAndCompute(img2, None)
+        sift = cv2.SIFT_create(nfeatures=2000)
+        kp1, des1 = sift.detectAndCompute(img1, None)
+        kp2, des2 = sift.detectAndCompute(img2, None)
 
         if des1 is None or des2 is None or len(kp1) < 2 or len(kp2) < 2: return False
 
-        bf = cv2.BFMatcher(cv2.NORM_HAMMING)
+        bf = cv2.BFMatcher()
         matches = bf.knnMatch(des1, des2, k=2)
 
         good_matches = []
@@ -644,7 +645,7 @@ PLAY_HTML = r"""{% extends 'layout.html' %}
     <div class="card-body text-center">
         <img src="{{ url_for('uploaded_file', filename=target.target_image) }}" class="img-fluid rounded border border-2 border-secondary p-1" alt="Target Image" style="max-height: 400px; background-color: #fff;">
         {% if target.description %}
-        <p class="mt-4 mb-0 text-dark font-monospace bg-light p-3 rounded text-start border"><i class="fa-solid fa-quote-left me-2 text-muted"></i>{{ target.description }}</p>
+        <p class="mt-4 mb-0 text-dark font-monospace bg-light p-3 rounded text-start border"><i class="fa-solid fa-pen-fancy me-2 text-muted"></i>{{ target.description }}<i class="fa-solid fa-pen-fancy ms-2 text-muted"></i></p>
         {% endif %}
     </div>
 </div>

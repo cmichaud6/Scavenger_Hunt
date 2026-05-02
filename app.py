@@ -21,7 +21,7 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
 db = SQLAlchemy(app)
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+GEMINI_API_KEY = "your_actual_api_key_here"
 if GEMINI_API_KEY and GEMINI_API_KEY.strip() and GEMINI_API_KEY != "YOUR_API_KEY_HERE":
     client = genai.Client(api_key=GEMINI_API_KEY)
 else:
@@ -73,7 +73,7 @@ def calculate_score(clues_used, is_successful):
     elif clues_used >= 3: return 25
     return 0
 
-def verify_match(target_path, attempt_path, min_match_count=10, min_inliers=8, ratio_thresh=0.75):
+def verify_match(target_path, attempt_path, min_match_count=15, min_inliers=10, ratio_thresh=0.75):
     # Use Gemini API for smart, semantic image matching if an API key is provided
     if client:
         try:
@@ -97,7 +97,8 @@ def verify_match(target_path, attempt_path, min_match_count=10, min_inliers=8, r
                     text_response = response.text.strip().lower()
                     
                     print(f"DEBUG: Gemini Vision API result: {response.text}")
-                    if 'true' in text_response:
+                    # Check strictly to avoid false positives (e.g. "False. It is not true...")
+                    if text_response.startswith('true') or ('true' in text_response and 'false' not in text_response):
                         return True
                     return False
                 except Exception as e:
@@ -130,14 +131,14 @@ def verify_match(target_path, attempt_path, min_match_count=10, min_inliers=8, r
         img1 = resize_img(img1)
         img2 = resize_img(img2)
 
-        orb = cv2.ORB_create(nfeatures=2000)
-        kp1, des1 = orb.detectAndCompute(img1, None)
-        kp2, des2 = orb.detectAndCompute(img2, None)
+        sift = cv2.SIFT_create(nfeatures=2000)
+        kp1, des1 = sift.detectAndCompute(img1, None)
+        kp2, des2 = sift.detectAndCompute(img2, None)
 
         if des1 is None or des2 is None or len(kp1) < 2 or len(kp2) < 2: return False
 
-        # Use BFMatcher with knnMatch and Lowe's ratio test for more robust matching
-        bf = cv2.BFMatcher(cv2.NORM_HAMMING)
+        # Use BFMatcher with default NORM_L2 for SIFT
+        bf = cv2.BFMatcher()
         matches = bf.knnMatch(des1, des2, k=2)
 
         # Apply ratio test to find good matches

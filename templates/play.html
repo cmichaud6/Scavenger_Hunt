@@ -11,7 +11,7 @@
     <div class="card-body text-center">
         <img src="{{ url_for('uploaded_file', filename=target.target_image) }}" class="img-fluid rounded border border-2 border-secondary p-1" alt="Target Image" style="max-height: 400px; background-color: #fff;">
         {% if target.description %}
-        <p class="mt-4 mb-0 text-dark font-monospace bg-light p-3 rounded text-start border"><i class="fa-solid fa-quote-left me-2 text-muted"></i>{{ target.description }}</p>
+        <p class="mt-4 mb-0 text-dark font-monospace bg-light p-3 rounded text-start border"><i class="fa-solid fa-pen-fancy me-2 text-muted"></i>{{ target.description }}<i class="fa-solid fa-pen-fancy ms-2 text-muted"></i></p>
         {% endif %}
     </div>
 </div>
