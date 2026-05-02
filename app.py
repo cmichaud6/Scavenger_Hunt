@@ -21,8 +21,8 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
 db = SQLAlchemy(app)
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "YOUR_API_KEY_HERE")
-if GEMINI_API_KEY:
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+if GEMINI_API_KEY and GEMINI_API_KEY.strip() and GEMINI_API_KEY != "YOUR_API_KEY_HERE":
     client = genai.Client(api_key=GEMINI_API_KEY)
 else:
     client = None
@@ -73,7 +73,7 @@ def calculate_score(clues_used, is_successful):
     elif clues_used >= 3: return 25
     return 0
 
-def verify_match(target_path, attempt_path, min_match_count=8, min_inliers=4, ratio_thresh=0.85):
+def verify_match(target_path, attempt_path, min_match_count=10, min_inliers=8, ratio_thresh=0.75):
     # Use Gemini API for smart, semantic image matching if an API key is provided
     if client:
         try:
@@ -81,20 +81,17 @@ def verify_match(target_path, attempt_path, min_match_count=8, min_inliers=4, ra
             attempt_img = Image.open(attempt_path)
             
             prompt = (
-                "You are a lenient AI judge for a photo scavenger hunt. "
-                "I am providing you with two images: a reference target image and a player's attempt. "
-                "The player's attempt will likely have different lighting, angles, weather, zoom levels, "
-                "or contain people/objects not in the original. "
-                "Your goal is to verify if they are at the correct location or found the right object. "
-                "Focus on the main subject or background landmarks. Be forgiving of differences in the exact composition. "
-                "Answer ONLY with 'True' if it is a valid match, or 'False' if it is not."
+                "You are an AI judge for a photo scavenger hunt. Your task is to determine if a player's photo is a match for a target photo. "
+                "The player's photo might have different lighting, angles, or zoom levels, but it must clearly show the same primary subject or location. "
+                "Be reasonably flexible, but do not accept photos of completely different objects or places. "
+                "Answer ONLY with 'True' if the main subject is a clear match, or 'False' if it is not."
             )
             
             max_retries = 3
             for attempt in range(max_retries):
                 try:
                     response = client.models.generate_content(
-                        model='gemini-2.5-flash',
+                        model='gemini-1.5-flash',
                         contents=[prompt, target_img, attempt_img]
                     )
                     text_response = response.text.strip().lower()
@@ -267,7 +264,7 @@ def create_hunt():
                 db.session.add(target)
         
         db.session.commit()
-        flash('Scavenger hunt created successfully!')
+        flash('Scavenger hunt created successfully!', 'success')
         return redirect(url_for('index'))
             
     return render_template('create.html')
@@ -315,7 +312,7 @@ def edit_hunt(hunt_id):
                 db.session.add(target)
         
         db.session.commit()
-        flash(f'Hunt "{hunt.name}" updated successfully.')
+        flash(f'Hunt "{hunt.name}" updated successfully.', 'success')
         return redirect(url_for('index'))
 
     return render_template('edit_hunt.html', hunt=hunt)
@@ -336,7 +333,7 @@ def delete_hunt(hunt_id):
     Player.query.filter_by(hunt_id=hunt.id).delete()
     db.session.delete(hunt)
     db.session.commit()
-    flash(f'Hunt "{hunt_name}" has been deleted.')
+    flash(f'Hunt "{hunt_name}" has been deleted.', 'success')
     return redirect(url_for('index'))
 
 @app.route('/player/<username>/delete', methods=['POST'])
@@ -347,7 +344,7 @@ def delete_player(username):
         Attempt.query.filter_by(player_id=player.id).delete()
         db.session.delete(player)
         db.session.commit()
-        flash(f'Player "{username}" and all their records have been deleted.')
+        flash(f'Player "{username}" and all their records have been deleted.', 'success')
     return redirect(url_for('index'))
 
 @app.route('/user/<username>')
@@ -371,7 +368,7 @@ def play_hunt_start(hunt_id):
     if request.method == 'POST':
         username = request.form.get('username')
         if not username:
-            flash('Please enter a username.')
+            flash('Please enter a username.', 'warning')
             return redirect(request.url)
             
         player = Player(username=username, hunt_id=hunt.id)
@@ -389,7 +386,7 @@ def play_hunt_step(hunt_id, step_number):
     player_id = session.get(f'player_{hunt_id}')
     
     if not player_id:
-        flash('Please start the hunt by entering your username.')
+        flash('Please start the hunt by entering your username.', 'warning')
         return redirect(url_for('play_hunt_start', hunt_id=hunt.id))
         
     player = Player.query.get(player_id)
@@ -399,17 +396,17 @@ def play_hunt_step(hunt_id, step_number):
         if not player.is_completed:
             player.is_completed = True
             db.session.commit()
-        flash(f'Congratulations {player.username}! You have completed the scavenger hunt with a total score of {player.total_score}!')
+        flash(f'Congratulations {player.username}! You have completed the scavenger hunt with a total score of {player.total_score}!', 'success')
         return redirect(url_for('index'))
     
     if request.method == 'POST':
         if 'attempt_image' not in request.files:
-            flash('No image uploaded.')
+            flash('No image uploaded.', 'danger')
             return redirect(request.url)
             
         file = request.files['attempt_image']
         if file.filename == '' or not allowed_file(file.filename):
-            flash('Invalid or missing file.')
+            flash('Invalid or missing file.', 'danger')
             return redirect(request.url)
             
         clues_used = int(request.form.get('clues_used', 1))
@@ -430,10 +427,10 @@ def play_hunt_step(hunt_id, step_number):
         db.session.commit()
         
         if is_match:
-            flash(f'Success! You found it using {clues_used} clue(s). You scored {score} points!')
+            flash(f'Success! You found it using {clues_used} clue(s). You scored {score} points!', 'success')
             return redirect(url_for('play_hunt_step', hunt_id=hunt.id, step_number=step_number + 1))
         else:
-            flash('Not quite right. That cost you 10 points! Keep searching.')
+            flash('Not quite right. That cost you 10 points! Keep searching.', 'danger')
             return redirect(request.url)
         
     return render_template('play.html', hunt=hunt, target=target, player=player)
@@ -445,7 +442,7 @@ def admin_login():
     if request.method == 'POST':
         if request.form.get('username') == 'admin' and request.form.get('password') == 'admin':
             session['is_admin'] = True
-            flash('Logged in as admin.')
+            flash('Logged in as admin.', 'success')
             return redirect(url_for('index'))
         else:
             flash('Invalid credentials.', 'danger')
@@ -454,7 +451,7 @@ def admin_login():
 @app.route('/admin/logout')
 def admin_logout():
     session.pop('is_admin', None)
-    flash('You have been logged out.')
+    flash('You have been logged out.', 'info')
     return redirect(url_for('index'))
 
 if __name__ == '__main__':

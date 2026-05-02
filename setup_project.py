@@ -21,8 +21,8 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
 db = SQLAlchemy(app)
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "YOUR_API_KEY_HERE")
-if GEMINI_API_KEY:
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+if GEMINI_API_KEY and GEMINI_API_KEY.strip() and GEMINI_API_KEY != "YOUR_API_KEY_HERE":
     client = genai.Client(api_key=GEMINI_API_KEY)
 else:
     client = None
@@ -54,7 +54,7 @@ def calculate_score(clues_used, is_successful):
     elif clues_used >= 3: return 25
     return 0
 
-def verify_match(target_path, attempt_path, min_match_count=8, min_inliers=4, ratio_thresh=0.85):
+def verify_match(target_path, attempt_path, min_match_count=10, min_inliers=8, ratio_thresh=0.75):
     # Use Gemini API for smart, semantic image matching if an API key is provided
     if client:
         try:
@@ -62,20 +62,17 @@ def verify_match(target_path, attempt_path, min_match_count=8, min_inliers=4, ra
             attempt_img = Image.open(attempt_path)
             
             prompt = (
-                "You are a lenient AI judge for a photo scavenger hunt. "
-                "I am providing you with two images: a reference target image and a player's attempt. "
-                "The player's attempt will likely have different lighting, angles, weather, zoom levels, "
-                "or contain people/objects not in the original. "
-                "Your goal is to verify if they are at the correct location or found the right object. "
-                "Focus on the main subject or background landmarks. Be forgiving of differences in the exact composition. "
-                "Answer ONLY with 'True' if it is a valid match, or 'False' if it is not."
+                "You are an AI judge for a photo scavenger hunt. Your task is to determine if a player's photo is a match for a target photo. "
+                "The player's photo might have different lighting, angles, or zoom levels, but it must clearly show the same primary subject or location. "
+                "Be reasonably flexible, but do not accept photos of completely different objects or places. "
+                "Answer ONLY with 'True' if the main subject is a clear match, or 'False' if it is not."
             )
             
             max_retries = 3
             for attempt in range(max_retries):
                 try:
                     response = client.models.generate_content(
-                        model='gemini-2.5-flash',
+                        model='gemini-1.5-flash',
                         contents=[prompt, target_img, attempt_img]
                     )
                     text_response = response.text.strip().lower()
@@ -160,12 +157,12 @@ def index():
 def create_hunt():
     if request.method == 'POST':
         if 'target_image' not in request.files:
-            flash('No file part')
+            flash('No file part', 'danger')
             return redirect(request.url)
         
         file = request.files['target_image']
         if file.filename == '':
-            flash('No selected file')
+            flash('No selected file', 'warning')
             return redirect(request.url)
             
         if file and allowed_file(file.filename):
@@ -182,7 +179,7 @@ def create_hunt():
             db.session.add(new_hunt)
             db.session.commit()
             
-            flash('Scavenger hunt created successfully!')
+            flash('Scavenger hunt created successfully!', 'success')
             return redirect(url_for('index'))
             
     return render_template('create.html')
@@ -193,12 +190,12 @@ def play_hunt(hunt_id):
     
     if request.method == 'POST':
         if 'attempt_image' not in request.files:
-            flash('No image uploaded.')
+            flash('No image uploaded.', 'danger')
             return redirect(request.url)
             
         file = request.files['attempt_image']
         if file.filename == '' or not allowed_file(file.filename):
-            flash('Invalid or missing file.')
+            flash('Invalid or missing file.', 'danger')
             return redirect(request.url)
             
         clues_used = int(request.form.get('clues_used', 1))
@@ -217,9 +214,9 @@ def play_hunt(hunt_id):
         db.session.commit()
         
         if is_match:
-            flash(f'Success! You found it using {clues_used} clue(s). You scored {score} points!')
+            flash(f'Success! You found it using {clues_used} clue(s). You scored {score} points!', 'success')
         else:
-            flash('Not quite right. Keep searching!')
+            flash('Not quite right. Keep searching!', 'danger')
             
         return redirect(url_for('play_hunt', hunt_id=hunt.id))
         
@@ -239,135 +236,177 @@ LAYOUT_HTML = r"""<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Photo Scavenger Hunt</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome for travel/search icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Nunito:wght@400;600;700&display=swap');
 
         :root {
-            --bs-body-font-family: 'Roboto', sans-serif;
-            /* Blue Color Scheme */
-            --m3-surface: #F4F8FB;
-            --m3-surface-container: #E3EFFF;
-            --m3-on-surface: #1E293B;
-            --m3-primary: #1976D2;
-            --m3-primary-hover: #1565C0;
-            --m3-secondary: #0288D1;
-            --m3-success: #2E7D32;
-            --m3-warning: #ED6C02;
-            --m3-outline: #90CAF9;
+            --bg-color: #F4EED3; /* Vintage map sand */
+            --text-color: #2b2b2b;
+            --primary-color: #3b5323; /* Forest green */
+            --primary-hover: #2c3e1a;
+            --secondary-color: #8b5a2b; /* Leather brown */
+            --card-bg: #FCFAEF;
+            --border-color: #D4C4A8;
         }
 
         body {
-            background-color: var(--m3-surface);
-            color: var(--m3-on-surface);
-            font-family: var(--bs-body-font-family);
+            background-color: var(--bg-color);
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23d4c4a8' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            color: var(--text-color);
+            font-family: 'Nunito', sans-serif;
         }
 
-        /* Material 3 App Bar */
-        .navbar.bg-dark {
-            background-color: var(--m3-primary) !important;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            padding-top: 12px;
-            padding-bottom: 12px;
-            margin-bottom: 24px;
-            border-bottom: none;
+        h1, h2, h3, h4, h5, h6, .navbar-brand {
+            font-family: 'Playfair Display', serif;
+            font-weight: 700;
         }
-        .navbar-dark .navbar-brand, 
+
+        /* Travel Theme App Bar */
+        .navbar.bg-dark {
+            background-color: var(--primary-color) !important;
+            border-bottom: 4px solid var(--secondary-color);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding-top: 15px;
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+        }
+        .navbar-brand {
+            font-size: 1.5rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        .navbar-dark .navbar-brand,
         .navbar-dark .nav-link {
             color: #ffffff !important;
-            font-weight: 500;
+        }
+        .navbar-dark .nav-link {
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+            letter-spacing: 0.5px;
         }
 
-        /* Material 3 Expressive Cards */
+        /* Postcard/Journal Cards */
         .card {
-            border: 1px solid #dee2e6;
-            border-radius: 16px;
-            background-color: var(--m3-surface-container);
-            box-shadow: none;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background-color: var(--card-bg);
+            box-shadow: 2px 2px 8px rgba(0,0,0,0.05);
             overflow: hidden;
+            position: relative;
+        }
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 4px;
+            background: repeating-linear-gradient(
+                45deg,
+                var(--secondary-color),
+                var(--secondary-color) 10px,
+                #fff 10px,
+                #fff 20px,
+                #d32f2f 20px,
+                #d32f2f 30px,
+                #fff 30px,
+                #fff 40px
+            ); /* Airmail edge effect */
         }
         .card-header {
             background-color: transparent;
-            border-bottom: 1px solid #dee2e6;
-            font-size: 1.1rem;
-            font-weight: 500;
-            padding: 16px 24px;
+            border-bottom: 1px dashed var(--border-color);
+            font-size: 1.2rem;
+            font-family: 'Playfair Display', serif;
+            padding: 20px 24px 10px;
+            color: var(--primary-color);
         }
         .card-body {
             padding: 24px;
         }
 
-        /* Material 3 Buttons */
+        /* Compass/Travel Buttons */
         .btn {
-            border-radius: 100px; /* Fully rounded pill shape */
-            padding: 10px 24px;
-            font-weight: 500;
+            border-radius: 4px;
+            padding: 10px 20px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.85rem;
             border: none;
-            transition: all 0.2s ease;
+            transition: all 0.3s ease;
         }
-        .btn-primary { background-color: var(--m3-primary); color: #fff; }
-        .btn-primary:hover { background-color: var(--m3-primary-hover); box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
-        .btn-success { background-color: #386A20; color: #fff; }
-        .btn-warning { background-color: var(--m3-warning); color: #fff; }
-        .btn-secondary { background-color: #625B71; color: #fff; }
+        .btn-primary { background-color: var(--primary-color); color: #fff; }
+        .btn-primary:hover { background-color: var(--primary-hover); box-shadow: 0 4px 8px rgba(0,0,0,0.2); transform: translateY(-1px); }
+        .btn-success { background-color: var(--primary-color); color: #fff; border: 1px solid var(--primary-color); }
+        .btn-warning { background-color: var(--secondary-color); color: #fff; }
+        .btn-warning:hover { background-color: #6d4622; color: #fff; }
+        .btn-secondary { background-color: #555; color: #fff; }
+        .btn-outline-info { color: var(--secondary-color); border-color: var(--secondary-color); border-width: 2px; }
+        .btn-outline-info:hover { background-color: var(--secondary-color); color: #fff; }
 
-        /* Material 3 Filled Inputs */
+        /* Form Inputs */
         .form-control {
             border-radius: 4px;
-            padding: 16px;
-            background-color: var(--m3-surface);
-            border: 1px solid var(--m3-outline);
-            box-shadow: none !important;
+            padding: 12px 16px;
+            background-color: #fff;
+            border: 1px solid var(--border-color);
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.05) !important;
         }
         .form-control:focus {
-            background-color: var(--m3-surface);
-            border-color: var(--m3-primary);
-            box-shadow: 0 0 0 2px var(--m3-primary, 0.25) !important;
+            border-color: var(--primary-color);
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.05), 0 0 0 2px rgba(59, 83, 35, 0.25) !important;
         }
         .form-label {
-            font-weight: 500;
-            color: var(--m3-on-surface);
+            font-weight: 600;
+            color: var(--primary-color);
         }
 
         /* Expressive Lists */
         .list-group-item {
-            border: 1px solid #dee2e6;
-            margin-bottom: 8px;
-            border-radius: 12px !important;
-            background-color: var(--m3-surface-container);
+            border: 1px solid var(--border-color);
+            margin-bottom: 12px;
+            border-radius: 8px !important;
+            background-color: var(--card-bg);
+            box-shadow: 1px 1px 4px rgba(0,0,0,0.03);
         }
         .list-group-item.list-group-item-action:hover {
-            background-color: #BBDEFB;
+            background-color: #F0E8D5;
         }
         .list-group { background: transparent; }
 
         /* Flashed messages */
         .alert-info {
-            background-color: var(--m3-surface-container);
-            color: var(--m3-on-surface);
-            border: 1px solid var(--m3-primary);
-            border-radius: 12px;
+            background-color: #E8F0E5;
+            color: var(--primary-color);
+            border: 1px solid var(--primary-color);
+            border-radius: 8px;
+            font-weight: 600;
         }
+        
+        /* Badges */
+        .badge.bg-primary { background-color: var(--secondary-color) !important; }
+        .badge.bg-secondary { background-color: #6c757d !important; }
+        .badge.bg-info { background-color: var(--primary-color) !important; color: white !important; }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <nav class="navbar navbar-expand navbar-dark bg-dark">
         <div class="container">
-            <a class="navbar-brand" href="/">Scavenger Hunt</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <div class="navbar-nav ms-auto">
-                    <a class="nav-link" href="/create">Create Hunt</a>
-                </div>
+            <a class="navbar-brand" href="/"><i class="fa-solid fa-compass me-2"></i>Scavenger Hunt</a>
+            <div class="navbar-nav ms-auto d-flex flex-row gap-3">
             </div>
         </div>
     </nav>
     <div class="container mt-4">
-        {% with messages = get_flashed_messages() %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                {% for message in messages %}
-                    <div class="alert alert-info">{{ message }}</div>
+                {% for category, message in messages %}
+                    {% set alert_class = category if category in ['success', 'danger', 'warning', 'info'] else 'info' %}
+                    <div class="alert alert-{{ alert_class }} shadow-sm alert-dismissible fade show" role="alert">
+                        <i class="fa-solid fa-circle-info me-2"></i>{{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
                 {% endfor %}
             {% endif %}
         {% endwith %}
@@ -385,47 +424,50 @@ INDEX_HTML = r"""{% extends 'layout.html' %}
 <div class="row">
     <div class="col-md-7">
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <h2>Active Hunts</h2>
-            <button type="button" class="btn btn-outline-info" onclick="findHuntsNearMe()">📍 Find Hunts Near Me</button>
+            <h2><i class="fa-solid fa-earth-americas me-2"></i>Active Expeditions</h2>
+            <div class="d-flex gap-2">
+                <a href="/create" class="btn btn-primary"><i class="fa-solid fa-map-location-dot me-1"></i> Create Hunt</a>
+                <button type="button" class="btn btn-outline-info" onclick="findHuntsNearMe()"><i class="fa-solid fa-location-crosshairs me-1"></i> Near Me</button>
+            </div>
         </div>
         <p id="location-status" class="text-muted"></p>
         
         <div class="list-group">
             {% for hunt in hunts %}
-                <div class="list-group-item d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2">
-                    <a href="{{ url_for('play_hunt_start', hunt_id=hunt.id) }}" class="text-decoration-none text-reset flex-grow-1 mb-2 mb-sm-0">
-                        {{ hunt.name }} - Play Now!
+                <div class="list-group-item d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-2 p-3">
+                    <a href="{{ url_for('play_hunt_start', hunt_id=hunt.id) }}" class="text-decoration-none text-reset flex-grow-1 mb-2 mb-sm-0 fw-bold fs-5">
+                        <i class="fa-solid fa-map me-2 text-muted"></i>{{ hunt.name }}
                     </a>
                     {% if hunt.min_distance is defined and hunt.min_distance is not none %}
-                        <span class="badge bg-secondary rounded-pill me-2">{{ "%.1f"|format(hunt.min_distance) }} miles away</span>
+                        <span class="badge bg-secondary rounded-pill me-2"><i class="fa-solid fa-ruler me-1"></i>{{ "%.1f"|format(hunt.min_distance) }} miles</span>
                     {% endif %}
                     {% if session.is_admin %}
                     <div class="admin-actions">
-                        <a href="{{ url_for('edit_hunt', hunt_id=hunt.id) }}" class="btn btn-sm btn-secondary">Edit</a>
-                        <form action="{{ url_for('delete_hunt', hunt_id=hunt.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this hunt?');">
-                            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                        <a href="{{ url_for('edit_hunt', hunt_id=hunt.id) }}" class="btn btn-sm btn-secondary"><i class="fa-solid fa-pen"></i></a>
+                        <form action="{{ url_for('delete_hunt', hunt_id=hunt.id) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this expedition?');">
+                            <button type="submit" class="btn btn-sm btn-danger"><i class="fa-solid fa-trash"></i></button>
                         </form>
                     </div>
                     {% endif %}
                 </div>
             {% else %}
-                <p>No hunts available yet. Be the first to <a href="/create">create one</a>!</p>
+                <p>No expeditions available yet. Be the first to <a href="/create">chart one</a>!</p>
             {% endfor %}
         </div>
     </div>
 
     <div class="col-md-5 mt-5 mt-md-0">
-        <h2>Global Leaderboard</h2>
+        <h2><i class="fa-solid fa-trophy me-2"></i>Explorer Leaderboard</h2>
         <div class="card mt-3">
             <ul class="list-group list-group-flush">
                 {% for row in leaderboard %}
                     <li class="list-group-item d-flex justify-content-between align-items-center p-3">
-                        <a href="{{ url_for('user_details', username=row.username) }}" class="fw-bold text-decoration-none text-primary">{{ row.username }}</a>
+                        <a href="{{ url_for('user_details', username=row.username) }}" class="fw-bold text-decoration-none text-dark"><i class="fa-solid fa-user-astronaut me-2"></i>{{ row.username }}</a>
                         <div class="d-flex align-items-center gap-2">
                             <span class="badge bg-primary rounded-pill">{{ row.total }} pts</span>
                             {% if session.is_admin %}
-                            <form action="{{ url_for('delete_player', username=row.username) }}" method="POST" class="m-0" onsubmit="return confirm('Are you sure you want to delete this user and all their scores?');">
-                                <button type="submit" class="btn btn-sm btn-danger">&times;</button>
+                            <form action="{{ url_for('delete_player', username=row.username) }}" method="POST" class="m-0" onsubmit="return confirm('Delete this explorer?');">
+                                <button type="submit" class="btn btn-sm btn-danger"><i class="fa-solid fa-xmark"></i></button>
                             </form>
                             {% endif %}
                         </div>
@@ -467,48 +509,52 @@ function findHuntsNearMe() {
 CREATE_HTML = r"""{% extends 'layout.html' %}
 
 {% block content %}
-<h2>Create a New Scavenger Hunt</h2>
-<form method="POST" enctype="multipart/form-data" class="mt-4">
-    <div class="mb-3">
-        <label for="hunt_name" class="form-label">Hunt Name</label>
-        <input type="text" class="form-control" id="hunt_name" name="hunt_name" placeholder="E.g., Downtown Adventure" required>
-    </div>
+<h2><i class="fa-solid fa-map-marked-alt me-2"></i>Chart a New Expedition</h2>
+<div class="card mt-4 p-2">
+    <div class="card-body">
+        <form method="POST" enctype="multipart/form-data">
+            <div class="mb-3">
+                <label for="hunt_name" class="form-label"><i class="fa-solid fa-signature me-1"></i> Expedition Name</label>
+                <input type="text" class="form-control" id="hunt_name" name="hunt_name" placeholder="E.g., The Lost City of Gold" required>
+            </div>
 
-    <div class="mb-3">
-        <label for="target_image" class="form-label">Target Image (What players need to find)</label>
-        <input type="file" class="form-control" id="target_image" name="target_image" accept="image/png, image/jpeg" required>
+            <div class="mb-3">
+                <label for="target_image" class="form-label"><i class="fa-solid fa-image me-1"></i> Target Image</label>
+                <input type="file" class="form-control" id="target_image" name="target_image" accept="image/png, image/jpeg" required>
+            </div>
+            <div class="mb-3">
+                <label for="description" class="form-label"><i class="fa-solid fa-book-open me-1"></i> Field Notes (Optional)</label>
+                <textarea class="form-control" id="description" name="description" rows="2" placeholder="Brief description of the photo or location..."></textarea>
+            </div>
+            <div class="mb-3">
+                <label for="clue1" class="form-label"><i class="fa-solid fa-magnifying-glass me-1"></i> Clue 1 (Cryptic)</label>
+                <input type="text" class="form-control" id="clue1" name="clue1" required>
+            </div>
+            <div class="mb-3">
+                <label for="clue2" class="form-label"><i class="fa-solid fa-magnifying-glass-plus me-1"></i> Clue 2 (Moderate)</label>
+                <input type="text" class="form-control" id="clue2" name="clue2" required>
+            </div>
+            <div class="mb-3">
+                <label for="clue3" class="form-label"><i class="fa-solid fa-magnifying-glass-location me-1"></i> Clue 3 (Direct)</label>
+                <input type="text" class="form-control" id="clue3" name="clue3" required>
+            </div>
+            
+            <div class="mb-4">
+                <label class="form-label"><i class="fa-solid fa-location-dot me-1"></i> Coordinates (Optional)</label>
+                <div class="input-group mb-2">
+                    <input type="text" class="form-control address-input" name="address" placeholder="Enter an address or landmark" onblur="geocodeAddress(this)">
+                    <button type="button" class="btn btn-outline-info" onclick="geocodeAddress(this)"><i class="fa-solid fa-search"></i> Search</button>
+                </div>
+                <input type="hidden" name="latitude" class="lat-input">
+                <input type="hidden" name="longitude" class="lng-input">
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="getLocation(this)"><i class="fa-solid fa-thumbtack me-1"></i> Drop Pin Here</button>
+                <span class="location-status text-muted ms-2 small"></span>
+            </div>
+            
+            <button type="submit" class="btn btn-primary btn-lg w-100"><i class="fa-solid fa-paper-plane me-2"></i> Launch Expedition</button>
+        </form>
     </div>
-    <div class="mb-3">
-        <label for="description" class="form-label">Description (Optional)</label>
-        <textarea class="form-control" id="description" name="description" rows="2" placeholder="Brief description of the photo or location..."></textarea>
-    </div>
-    <div class="mb-3">
-        <label for="clue1" class="form-label">Clue 1 (Hardest / Most Cryptic)</label>
-        <input type="text" class="form-control" id="clue1" name="clue1" required>
-    </div>
-    <div class="mb-3">
-        <label for="clue2" class="form-label">Clue 2 (Medium Helpfulness)</label>
-        <input type="text" class="form-control" id="clue2" name="clue2" required>
-    </div>
-    <div class="mb-3">
-        <label for="clue3" class="form-label">Clue 3 (Easiest / Most Direct)</label>
-        <input type="text" class="form-control" id="clue3" name="clue3" required>
-    </div>
-    
-    <div class="mb-3">
-        <label class="form-label">Location (Optional)</label>
-        <div class="input-group mb-2">
-            <input type="text" class="form-control address-input" name="address" placeholder="Enter an address or landmark" onblur="geocodeAddress(this)">
-            <button type="button" class="btn btn-outline-secondary" onclick="geocodeAddress(this)">Search</button>
-        </div>
-        <input type="hidden" name="latitude" class="lat-input">
-        <input type="hidden" name="longitude" class="lng-input">
-        <button type="button" class="btn btn-outline-info btn-sm" onclick="getLocation(this)">📍 Drop Pin at Current Location</button>
-        <span class="location-status text-muted ms-2 small"></span>
-    </div>
-    
-    <button type="submit" class="btn btn-primary">Create Hunt</button>
-</form>
+</div>
 
 <script>
 function geocodeAddress(element) {
@@ -588,49 +634,49 @@ function getLocation(btn) {
 PLAY_HTML = r"""{% extends 'layout.html' %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center">
-    <h2>Play: {{ hunt.name }}</h2>
-    <h4><span class="badge bg-info text-dark">Current Score: {{ player.total_score }}</span></h4>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fa-solid fa-route me-2"></i>Expedition: {{ hunt.name }}</h2>
+    <h4><span class="badge bg-info shadow-sm"><i class="fa-solid fa-star me-1"></i>Score: {{ player.total_score }}</span></h4>
 </div>
 
 <div class="card mt-4 mb-4">
-    <div class="card-header">Image to Find</div>
+    <div class="card-header"><i class="fa-solid fa-camera-retro me-2"></i>Target Objective</div>
     <div class="card-body text-center">
-        <img src="{{ url_for('uploaded_file', filename=target.target_image) }}" class="img-fluid rounded" alt="Target Image" style="max-height: 400px;">
-        {% if hunt.description %}
-        <p class="mt-3 text-muted">{{ hunt.description }}</p>
+        <img src="{{ url_for('uploaded_file', filename=target.target_image) }}" class="img-fluid rounded border border-2 border-secondary p-1" alt="Target Image" style="max-height: 400px; background-color: #fff;">
+        {% if target.description %}
+        <p class="mt-4 mb-0 text-dark font-monospace bg-light p-3 rounded text-start border"><i class="fa-solid fa-quote-left me-2 text-muted"></i>{{ target.description }}</p>
         {% endif %}
     </div>
 </div>
 
 <div class="card mt-4 mb-4">
-    <div class="card-header">Clues</div>
+    <div class="card-header"><i class="fa-solid fa-scroll me-2"></i>Explorer's Log (Clues)</div>
     <div class="card-body">
-        <p id="display-clue1" class="fw-bold">1. {{ target.clue1 }}</p>
-        <p id="display-clue2" class="fw-bold text-muted" style="display: none;">2. {{ target.clue2 }}</p>
-        <p id="display-clue3" class="fw-bold text-muted" style="display: none;">3. {{ target.clue3 }}</p>
+        <p id="display-clue1" class="fw-bold fs-5"><i class="fa-solid fa-key me-2 text-warning"></i>1. {{ target.clue1 }}</p>
+        <p id="display-clue2" class="fw-bold text-muted fs-5" style="display: none;"><i class="fa-solid fa-key me-2 text-warning"></i>2. {{ target.clue2 }}</p>
+        <p id="display-clue3" class="fw-bold text-muted fs-5" style="display: none;"><i class="fa-solid fa-key me-2 text-warning"></i>3. {{ target.clue3 }}</p>
         
-        <div class="d-grid gap-2 d-md-block mt-3">
-            <button type="button" class="btn btn-warning" id="revealBtn" onclick="revealNextClue()">Reveal Next Clue</button>
+        <div class="d-grid gap-2 d-md-block mt-4">
+            <button type="button" class="btn btn-warning" id="revealBtn" onclick="revealNextClue()"><i class="fa-solid fa-eye me-1"></i> Reveal Next Clue</button>
         </div>
     </div>
 </div>
 
-<form method="POST" enctype="multipart/form-data" class="mb-5">
+<form method="POST" enctype="multipart/form-data" class="mb-5 bg-white p-4 border rounded shadow-sm" id="attemptForm">
+    <h4 class="mb-3"><i class="fa-solid fa-upload me-2"></i>Submit Your Findings</h4>
     <input type="hidden" id="clues_used" name="clues_used" value="1">
     <!-- This input is hidden from the user -->
-    <input type="file" id="attempt_image" name="attempt_image" accept="image/*" required style="display: none;">
+    <input type="file" id="attempt_image" name="attempt_image" accept="image/*" style="display: none;">
 
-    <div class="mb-3">
-        <label class="form-label">Upload Your Photo Attempt</label>
+    <div class="mb-4">
         <div class="d-grid gap-2 d-md-flex">
-            <button type="button" class="btn btn-secondary" id="uploadBtn">Upload from Library</button>
-            <button type="button" class="btn btn-info" id="captureBtn">Take Photo with Camera</button>
+            <button type="button" class="btn btn-outline-secondary" id="uploadBtn"><i class="fa-solid fa-folder-open me-1"></i> From Library</button>
+            <button type="button" class="btn btn-outline-info" id="captureBtn"><i class="fa-solid fa-camera me-1"></i> Take Photo</button>
         </div>
-        <p id="file-info" class="text-muted mt-2 mb-0">No file selected.</p>
+        <p id="file-info" class="text-muted mt-3 mb-0 font-monospace small"><i class="fa-solid fa-file-image me-1"></i> No image selected.</p>
     </div>
     <div class="d-grid gap-2 d-md-block">
-        <button type="submit" class="btn btn-success">Submit Attempt</button>
+        <button type="submit" class="btn btn-success btn-lg" id="submitBtn"><i class="fa-solid fa-check-circle me-1"></i> Verify Match</button>
     </div>
 </form>
 
@@ -652,6 +698,8 @@ PLAY_HTML = r"""{% extends 'layout.html' %}
     const uploadBtn = document.getElementById('uploadBtn');
     const captureBtn = document.getElementById('captureBtn');
     const fileInfo = document.getElementById('file-info');
+    const attemptForm = document.getElementById('attemptForm');
+    const submitBtn = document.getElementById('submitBtn');
 
     uploadBtn.addEventListener('click', () => {
         fileInput.removeAttribute('capture');
@@ -669,6 +717,16 @@ PLAY_HTML = r"""{% extends 'layout.html' %}
             fileInfo.classList.remove('text-muted');
             fileInfo.classList.add('text-success', 'fw-bold');
         }
+    });
+
+    attemptForm.addEventListener('submit', function(e) {
+        if (fileInput.files.length === 0) {
+            e.preventDefault();
+            alert("Please select or capture a photo first!");
+            return;
+        }
+        submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Analyzing Photo...';
+        submitBtn.disabled = true;
     });
 </script>
 {% endblock %}

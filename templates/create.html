@@ -1,58 +1,58 @@
 {% extends 'layout.html' %}
 
 {% block content %}
-<h2>Create a New Scavenger Hunt</h2>
+<h2><i class="fa-solid fa-map-marked-alt me-2"></i>Chart a New Expedition</h2>
 <form method="POST" enctype="multipart/form-data" class="mt-4">
     <div class="mb-3">
-        <label for="hunt_name" class="form-label">Hunt Name</label>
-        <input type="text" class="form-control" id="hunt_name" name="hunt_name" required>
+        <label for="hunt_name" class="form-label"><i class="fa-solid fa-signature me-1"></i> Expedition Name</label>
+        <input type="text" class="form-control" id="hunt_name" name="hunt_name" placeholder="E.g., The Lost City of Gold" required>
     </div>
 
     <div id="targets-container">
         <div class="target-block border p-3 mb-3 bg-light">
             <h4>Photo 1</h4>
             <div class="mb-3">
-                <label class="form-label">Target Image (What players need to find)</label>
+                <label class="form-label"><i class="fa-solid fa-image me-1"></i> Target Image</label>
                 <input type="file" class="target-file-input" name="target_image" accept="image/png, image/jpeg, image/*" required style="display: none;">
                 <div class="d-grid gap-2 d-md-flex mt-2">
-                    <button type="button" class="btn btn-secondary upload-btn">Upload from Library</button>
-                    <button type="button" class="btn btn-info capture-btn">Take Photo with Camera</button>
+                    <button type="button" class="btn btn-outline-secondary upload-btn"><i class="fa-solid fa-folder-open me-1"></i> Upload from Library</button>
+                    <button type="button" class="btn btn-outline-info capture-btn"><i class="fa-solid fa-camera me-1"></i> Take Photo</button>
                 </div>
-                <p class="file-info text-muted mt-2 mb-0">No file selected.</p>
+                <p class="file-info text-muted mt-2 mb-0 font-monospace small"><i class="fa-solid fa-file-image me-1"></i> No file selected.</p>
             </div>
             <div class="mb-3">
-                <label class="form-label">Description (Optional)</label>
+                <label class="form-label"><i class="fa-solid fa-book-open me-1"></i> Field Notes (Optional)</label>
                 <textarea class="form-control" name="description" rows="2" placeholder="Brief description of the photo or location..."></textarea>
             </div>
             <div class="mb-3">
-                <label class="form-label">Clue 1 (Hardest / Most Cryptic)</label>
+                <label class="form-label"><i class="fa-solid fa-magnifying-glass me-1"></i> Clue 1 (Cryptic)</label>
                 <input type="text" class="form-control" name="clue1" required>
             </div>
             <div class="mb-3">
-                <label class="form-label">Clue 2 (Medium Helpfulness)</label>
+                <label class="form-label"><i class="fa-solid fa-magnifying-glass-plus me-1"></i> Clue 2 (Moderate)</label>
                 <input type="text" class="form-control" name="clue2" required>
             </div>
             <div class="mb-3">
-                <label class="form-label">Clue 3 (Easiest / Most Direct)</label>
+                <label class="form-label"><i class="fa-solid fa-magnifying-glass-location me-1"></i> Clue 3 (Direct)</label>
                 <input type="text" class="form-control" name="clue3" required>
             </div>
             <div class="mb-3">
-                <label class="form-label">Location (Optional)</label>
+                <label class="form-label"><i class="fa-solid fa-location-dot me-1"></i> Coordinates (Optional)</label>
                 <div class="input-group mb-2">
                     <input type="text" class="form-control address-input" name="address" placeholder="Enter an address or landmark" onblur="geocodeAddress(this)">
-                    <button type="button" class="btn btn-outline-secondary" onclick="geocodeAddress(this)">Search</button>
+                    <button type="button" class="btn btn-outline-info" onclick="geocodeAddress(this)"><i class="fa-solid fa-search"></i> Search</button>
                 </div>
                 <input type="hidden" name="latitude" class="lat-input">
                 <input type="hidden" name="longitude" class="lng-input">
-                <button type="button" class="btn btn-outline-info btn-sm" onclick="getLocation(this)">📍 Drop Pin at Current Location</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="getLocation(this)"><i class="fa-solid fa-thumbtack me-1"></i> Drop Pin Here</button>
                 <span class="location-status text-muted ms-2 small"></span>
             </div>
         </div>
     </div>
     
     <div class="d-grid gap-2 d-md-block mb-3">
-        <button type="button" class="btn btn-secondary" onclick="addTarget()">+ Add Another Photo</button>
-        <button type="submit" class="btn btn-primary">Create Hunt</button>
+        <button type="button" class="btn btn-secondary" onclick="addTarget()"><i class="fa-solid fa-plus me-1"></i> Add Another Photo</button>
+        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane me-1"></i> Launch Expedition</button>
     </div>
 </form>
 
@@ -65,30 +65,30 @@
         block.className = 'target-block border p-3 mb-3 bg-light';
         block.innerHTML = `
             <h4>Photo ${targetCount}</h4>
-            <div class="mb-3"><label class="form-label">Target Image</label>
+            <div class="mb-3"><label class="form-label"><i class="fa-solid fa-image me-1"></i> Target Image</label>
             <input type="file" class="target-file-input" name="target_image" accept="image/png, image/jpeg, image/*" required style="display: none;">
             <div class="d-grid gap-2 d-md-flex mt-2">
-                <button type="button" class="btn btn-secondary upload-btn">Upload from Library</button>
-                <button type="button" class="btn btn-info capture-btn">Take Photo with Camera</button>
+                <button type="button" class="btn btn-outline-secondary upload-btn"><i class="fa-solid fa-folder-open me-1"></i> Upload from Library</button>
+                <button type="button" class="btn btn-outline-info capture-btn"><i class="fa-solid fa-camera me-1"></i> Take Photo</button>
             </div>
-            <p class="file-info text-muted mt-2 mb-0">No file selected.</p></div>
-            <div class="mb-3"><label class="form-label">Description (Optional)</label>
+            <p class="file-info text-muted mt-2 mb-0 font-monospace small"><i class="fa-solid fa-file-image me-1"></i> No file selected.</p></div>
+            <div class="mb-3"><label class="form-label"><i class="fa-solid fa-book-open me-1"></i> Field Notes (Optional)</label>
             <textarea class="form-control" name="description" rows="2" placeholder="Brief description of the photo or location..."></textarea></div>
-            <div class="mb-3"><label class="form-label">Clue 1</label>
+            <div class="mb-3"><label class="form-label"><i class="fa-solid fa-magnifying-glass me-1"></i> Clue 1 (Cryptic)</label>
             <input type="text" class="form-control" name="clue1" required></div>
-            <div class="mb-3"><label class="form-label">Clue 2</label>
+            <div class="mb-3"><label class="form-label"><i class="fa-solid fa-magnifying-glass-plus me-1"></i> Clue 2 (Moderate)</label>
             <input type="text" class="form-control" name="clue2" required></div>
-            <div class="mb-3"><label class="form-label">Clue 3</label>
+            <div class="mb-3"><label class="form-label"><i class="fa-solid fa-magnifying-glass-location me-1"></i> Clue 3 (Direct)</label>
             <input type="text" class="form-control" name="clue3" required></div>
             <div class="mb-3">
-                <label class="form-label">Location (Optional)</label>
+                <label class="form-label"><i class="fa-solid fa-location-dot me-1"></i> Coordinates (Optional)</label>
                 <div class="input-group mb-2">
                     <input type="text" class="form-control address-input" name="address" placeholder="Enter an address or landmark" onblur="geocodeAddress(this)">
-                    <button type="button" class="btn btn-outline-secondary" onclick="geocodeAddress(this)">Search</button>
+                    <button type="button" class="btn btn-outline-info" onclick="geocodeAddress(this)"><i class="fa-solid fa-search"></i> Search</button>
                 </div>
                 <input type="hidden" name="latitude" class="lat-input">
                 <input type="hidden" name="longitude" class="lng-input">
-                <button type="button" class="btn btn-outline-info btn-sm" onclick="getLocation(this)">📍 Drop Pin at Current Location</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="getLocation(this)"><i class="fa-solid fa-thumbtack me-1"></i> Drop Pin Here</button>
                 <span class="location-status text-muted ms-2 small"></span>
             </div>
         `;
