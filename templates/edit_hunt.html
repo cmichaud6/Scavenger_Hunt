@@ -23,6 +23,10 @@
                 <p class="file-info text-muted mt-2 mb-0">No file selected.</p>
             </div>
             <div class="mb-3">
+                <label class="form-label">Description (Optional)</label>
+                <textarea class="form-control" name="description" rows="2" placeholder="Brief description of the photo or location...">{{ target.description or '' }}</textarea>
+            </div>
+            <div class="mb-3">
                 <label class="form-label">Clue 1</label>
                 <input type="text" class="form-control" name="clue1" value="{{ target.clue1 }}" required>
             </div>
@@ -35,12 +39,17 @@
                 <input type="text" class="form-control" name="clue3" value="{{ target.clue3 }}" required>
             </div>
             <div class="mb-3">
-                <button type="button" class="btn btn-outline-info" onclick="getLocation(this)">📍 Drop Location Pin</button>
-                <span class="location-status {% if target.latitude and target.longitude %}text-success fw-bold{% else %}text-muted{% endif %} ms-2">
-                    {% if target.latitude and target.longitude %}Location saved{% endif %}
-                </span>
+                <label class="form-label">Location (Optional)</label>
+                <div class="input-group mb-2">
+                    <input type="text" class="form-control address-input" name="address" value="{{ target.address or '' }}" placeholder="Enter an address or landmark" onblur="geocodeAddress(this)">
+                    <button type="button" class="btn btn-outline-secondary" onclick="geocodeAddress(this)">Search</button>
+                </div>
                 <input type="hidden" name="latitude" class="lat-input" value="{{ target.latitude or '' }}">
                 <input type="hidden" name="longitude" class="lng-input" value="{{ target.longitude or '' }}">
+                <button type="button" class="btn btn-outline-info btn-sm" onclick="getLocation(this)">📍 Drop Pin at Current Location</button>
+                <span class="location-status {% if target.latitude and target.longitude %}text-success fw-bold{% else %}text-muted{% endif %} ms-2 small">
+                    {% if target.latitude and target.longitude %}Location saved{% endif %}
+                </span>
             </div>
         </div>
         {% endfor %}
@@ -68,6 +77,8 @@
                 <button type="button" class="btn btn-info capture-btn">Take Photo with Camera</button>
             </div>
             <p class="file-info text-muted mt-2 mb-0">No file selected.</p></div>
+            <div class="mb-3"><label class="form-label">Description (Optional)</label>
+            <textarea class="form-control" name="description" rows="2" placeholder="Brief description of the photo or location..."></textarea></div>
             <div class="mb-3"><label class="form-label">Clue 1</label>
             <input type="text" class="form-control" name="clue1" required></div>
             <div class="mb-3"><label class="form-label">Clue 2</label>
@@ -75,10 +86,15 @@
             <div class="mb-3"><label class="form-label">Clue 3</label>
             <input type="text" class="form-control" name="clue3" required></div>
             <div class="mb-3">
-                <button type="button" class="btn btn-outline-info" onclick="getLocation(this)">📍 Drop Location Pin</button>
-                <span class="location-status text-muted ms-2"></span>
+                <label class="form-label">Location (Optional)</label>
+                <div class="input-group mb-2">
+                    <input type="text" class="form-control address-input" name="address" placeholder="Enter an address or landmark" onblur="geocodeAddress(this)">
+                    <button type="button" class="btn btn-outline-secondary" onclick="geocodeAddress(this)">Search</button>
+                </div>
                 <input type="hidden" name="latitude" class="lat-input">
                 <input type="hidden" name="longitude" class="lng-input">
+                <button type="button" class="btn btn-outline-info btn-sm" onclick="getLocation(this)">📍 Drop Pin at Current Location</button>
+                <span class="location-status text-muted ms-2 small"></span>
             </div>
         `;
         container.appendChild(block);
@@ -111,10 +127,44 @@
         }
     });
 
+    function geocodeAddress(element) {
+        const container = element.closest('.mb-3');
+        const addressInput = container.querySelector('.address-input');
+        const latInput = container.querySelector('.lat-input');
+        const lngInput = container.querySelector('.lng-input');
+        const statusSpan = container.querySelector('.location-status');
+        const address = addressInput.value.trim();
+
+        if (!address) return;
+
+        statusSpan.textContent = "Finding coordinates...";
+        statusSpan.className = "location-status text-warning ms-2 small fw-bold";
+
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.length > 0) {
+                    latInput.value = data[0].lat;
+                    lngInput.value = data[0].lon;
+                    statusSpan.textContent = "Coordinates found!";
+                    statusSpan.className = "location-status text-success ms-2 small fw-bold";
+                } else {
+                    statusSpan.textContent = "Address not found.";
+                    statusSpan.className = "location-status text-danger ms-2 small fw-bold";
+                }
+            })
+            .catch(error => {
+                statusSpan.textContent = "Error finding address.";
+                statusSpan.className = "location-status text-danger ms-2 small fw-bold";
+            });
+    }
+
     function getLocation(btn) {
-        const statusSpan = btn.nextElementSibling;
-        const latInput = statusSpan.nextElementSibling;
-        const lngInput = latInput.nextElementSibling;
+        const container = btn.closest('.mb-3');
+        const statusSpan = container.querySelector('.location-status');
+        const latInput = container.querySelector('.lat-input');
+        const lngInput = container.querySelector('.lng-input');
+        const addressInput = container.querySelector('.address-input');
 
         if (navigator.geolocation) {
             statusSpan.textContent = "Getting location...";
@@ -124,6 +174,16 @@
                 function(position) {
                     latInput.value = position.coords.latitude;
                     lngInput.value = position.coords.longitude;
+                    
+                    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.coords.latitude}&lon=${position.coords.longitude}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data && data.display_name) {
+                                addressInput.value = data.display_name;
+                            }
+                        })
+                        .catch(err => console.log(err));
+
                     statusSpan.textContent = "Location pinned!";
                     statusSpan.className = "location-status text-success ms-2 fw-bold";
                 },

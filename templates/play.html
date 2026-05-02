@@ -10,6 +10,9 @@
     <div class="card-header">Image to Find</div>
     <div class="card-body text-center">
         <img src="{{ url_for('uploaded_file', filename=target.target_image) }}" class="img-fluid rounded" alt="Target Image" style="max-height: 400px;">
+        {% if target.description %}
+        <p class="mt-3 text-muted">{{ target.description }}</p>
+        {% endif %}
     </div>
 </div>
 

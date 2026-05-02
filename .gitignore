@@ -3,6 +3,9 @@ __pycache__/
 *.pyc
 venv/
 
-# App Data
+# Project specifics
 uploads/
-*.db
+scavenger.db
+
+# Secrets
+.env

@@ -21,7 +21,7 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
 db = SQLAlchemy(app)
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "YOUR_API_KEY_HERE")
 if GEMINI_API_KEY:
     client = genai.Client(api_key=GEMINI_API_KEY)
 else:
@@ -30,6 +30,7 @@ else:
 class Hunt(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     target_image = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=True)
     clue1 = db.Column(db.String(255), nullable=False)
     clue2 = db.Column(db.String(255), nullable=False)
     clue3 = db.Column(db.String(255), nullable=False)
@@ -53,7 +54,7 @@ def calculate_score(clues_used, is_successful):
     elif clues_used >= 3: return 25
     return 0
 
-def verify_match(target_path, attempt_path, min_match_count=12, min_inliers=8, ratio_thresh=0.75):
+def verify_match(target_path, attempt_path, min_match_count=8, min_inliers=4, ratio_thresh=0.85):
     # Use Gemini API for smart, semantic image matching if an API key is provided
     if client:
         try:
@@ -61,11 +62,12 @@ def verify_match(target_path, attempt_path, min_match_count=12, min_inliers=8, r
             attempt_img = Image.open(attempt_path)
             
             prompt = (
-                "You are an AI judge for a photo scavenger hunt. "
+                "You are a lenient AI judge for a photo scavenger hunt. "
                 "I am providing you with two images: a reference target image and a player's attempt. "
-                "The player's attempt might have different lighting, different angles, zoom levels, "
+                "The player's attempt will likely have different lighting, angles, weather, zoom levels, "
                 "or contain people/objects not in the original. "
-                "Determine if the player successfully photographed the same specific item or location. "
+                "Your goal is to verify if they are at the correct location or found the right object. "
+                "Focus on the main subject or background landmarks. Be forgiving of differences in the exact composition. "
                 "Answer ONLY with 'True' if it is a valid match, or 'False' if it is not."
             )
             
@@ -174,8 +176,9 @@ def create_hunt():
             clue1 = request.form.get('clue1')
             clue2 = request.form.get('clue2')
             clue3 = request.form.get('clue3')
+            description = request.form.get('description')
             
-            new_hunt = Hunt(target_image=filename, clue1=clue1, clue2=clue2, clue3=clue3)
+            new_hunt = Hunt(target_image=filename, description=description, clue1=clue1, clue2=clue2, clue3=clue3)
             db.session.add(new_hunt)
             db.session.commit()
             
@@ -476,6 +479,10 @@ CREATE_HTML = r"""{% extends 'layout.html' %}
         <input type="file" class="form-control" id="target_image" name="target_image" accept="image/png, image/jpeg" required>
     </div>
     <div class="mb-3">
+        <label for="description" class="form-label">Description (Optional)</label>
+        <textarea class="form-control" id="description" name="description" rows="2" placeholder="Brief description of the photo or location..."></textarea>
+    </div>
+    <div class="mb-3">
         <label for="clue1" class="form-label">Clue 1 (Hardest / Most Cryptic)</label>
         <input type="text" class="form-control" id="clue1" name="clue1" required>
     </div>
@@ -489,22 +496,59 @@ CREATE_HTML = r"""{% extends 'layout.html' %}
     </div>
     
     <div class="mb-3">
-        <button type="button" class="btn btn-outline-info" onclick="getLocation(this)">
-            📍 Drop Location Pin
-        </button>
-        <span class="location-status text-muted ms-2"></span>
+        <label class="form-label">Location (Optional)</label>
+        <div class="input-group mb-2">
+            <input type="text" class="form-control address-input" name="address" placeholder="Enter an address or landmark" onblur="geocodeAddress(this)">
+            <button type="button" class="btn btn-outline-secondary" onclick="geocodeAddress(this)">Search</button>
+        </div>
         <input type="hidden" name="latitude" class="lat-input">
         <input type="hidden" name="longitude" class="lng-input">
+        <button type="button" class="btn btn-outline-info btn-sm" onclick="getLocation(this)">📍 Drop Pin at Current Location</button>
+        <span class="location-status text-muted ms-2 small"></span>
     </div>
     
     <button type="submit" class="btn btn-primary">Create Hunt</button>
 </form>
 
 <script>
+function geocodeAddress(element) {
+    const container = element.closest('.mb-3');
+    const addressInput = container.querySelector('.address-input');
+    const latInput = container.querySelector('.lat-input');
+    const lngInput = container.querySelector('.lng-input');
+    const statusSpan = container.querySelector('.location-status');
+    const address = addressInput.value.trim();
+
+    if (!address) return;
+
+    statusSpan.textContent = "Finding coordinates...";
+    statusSpan.className = "location-status text-warning ms-2 small fw-bold";
+
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data && data.length > 0) {
+                latInput.value = data[0].lat;
+                lngInput.value = data[0].lon;
+                statusSpan.textContent = "Coordinates found!";
+                statusSpan.className = "location-status text-success ms-2 small fw-bold";
+            } else {
+                statusSpan.textContent = "Address not found.";
+                statusSpan.className = "location-status text-danger ms-2 small fw-bold";
+            }
+        })
+        .catch(error => {
+            statusSpan.textContent = "Error finding address.";
+            statusSpan.className = "location-status text-danger ms-2 small fw-bold";
+        });
+}
+
 function getLocation(btn) {
-    const statusSpan = btn.nextElementSibling;
-    const latInput = statusSpan.nextElementSibling;
-    const lngInput = latInput.nextElementSibling;
+    const container = btn.closest('.mb-3');
+    const statusSpan = container.querySelector('.location-status');
+    const latInput = container.querySelector('.lat-input');
+    const lngInput = container.querySelector('.lng-input');
+    const addressInput = container.querySelector('.address-input');
 
     if (navigator.geolocation) {
         statusSpan.textContent = "Getting location...";
@@ -514,6 +558,15 @@ function getLocation(btn) {
             function(position) {
                 latInput.value = position.coords.latitude;
                 lngInput.value = position.coords.longitude;
+                
+                fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.coords.latitude}&lon=${position.coords.longitude}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data && data.display_name) {
+                            addressInput.value = data.display_name;
+                        }
+                    })
+                    .catch(err => console.log(err));
                 
                 statusSpan.textContent = "Location pinned!";
                 statusSpan.className = "location-status text-success ms-2 fw-bold";
@@ -544,6 +597,9 @@ PLAY_HTML = r"""{% extends 'layout.html' %}
     <div class="card-header">Image to Find</div>
     <div class="card-body text-center">
         <img src="{{ url_for('uploaded_file', filename=target.target_image) }}" class="img-fluid rounded" alt="Target Image" style="max-height: 400px;">
+        {% if hunt.description %}
+        <p class="mt-3 text-muted">{{ hunt.description }}</p>
+        {% endif %}
     </div>
 </div>
 

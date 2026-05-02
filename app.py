@@ -21,7 +21,7 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
 db = SQLAlchemy(app)
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "YOUR_API_KEY_HERE")
 if GEMINI_API_KEY:
     client = genai.Client(api_key=GEMINI_API_KEY)
 else:
@@ -37,11 +37,13 @@ class Target(db.Model):
     hunt_id = db.Column(db.Integer, db.ForeignKey('hunt.id'), nullable=False)
     step_number = db.Column(db.Integer, nullable=False)
     target_image = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=True)
     clue1 = db.Column(db.String(255), nullable=False)
     clue2 = db.Column(db.String(255), nullable=False)
     clue3 = db.Column(db.String(255), nullable=False)
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
+    address = db.Column(db.String(255), nullable=True)
     attempts = db.relationship('Attempt', backref='target', lazy=True)
 
 class Player(db.Model):
@@ -71,7 +73,7 @@ def calculate_score(clues_used, is_successful):
     elif clues_used >= 3: return 25
     return 0
 
-def verify_match(target_path, attempt_path, min_match_count=12, min_inliers=8, ratio_thresh=0.75):
+def verify_match(target_path, attempt_path, min_match_count=8, min_inliers=4, ratio_thresh=0.85):
     # Use Gemini API for smart, semantic image matching if an API key is provided
     if client:
         try:
@@ -79,11 +81,12 @@ def verify_match(target_path, attempt_path, min_match_count=12, min_inliers=8, r
             attempt_img = Image.open(attempt_path)
             
             prompt = (
-                "You are an AI judge for a photo scavenger hunt. "
+                "You are a lenient AI judge for a photo scavenger hunt. "
                 "I am providing you with two images: a reference target image and a player's attempt. "
-                "The player's attempt might have different lighting, different angles, zoom levels, "
+                "The player's attempt will likely have different lighting, angles, weather, zoom levels, "
                 "or contain people/objects not in the original. "
-                "Determine if the player successfully photographed the same specific item or location. "
+                "Your goal is to verify if they are at the correct location or found the right object. "
+                "Focus on the main subject or background landmarks. Be forgiving of differences in the exact composition. "
                 "Answer ONLY with 'True' if it is a valid match, or 'False' if it is not."
             )
             
@@ -236,11 +239,13 @@ def create_hunt():
         db.session.flush() # get new_hunt.id to associate targets
         
         target_images = request.files.getlist('target_image')
+        descriptions = request.form.getlist('description')
         clue1s = request.form.getlist('clue1')
         clue2s = request.form.getlist('clue2')
         clue3s = request.form.getlist('clue3')
         latitudes = request.form.getlist('latitude')
         longitudes = request.form.getlist('longitude')
+        addresses = request.form.getlist('address')
         
         for i, file in enumerate(target_images):
             if file and file.filename != '' and allowed_file(file.filename):
@@ -251,12 +256,14 @@ def create_hunt():
                 
                 lat = float(latitudes[i]) if i < len(latitudes) and latitudes[i] else None
                 lng = float(longitudes[i]) if i < len(longitudes) and longitudes[i] else None
+                address = addresses[i] if i < len(addresses) else ''
                 
                 target = Target(hunt_id=new_hunt.id, step_number=i+1, target_image=filename,
+                                description=descriptions[i] if i < len(descriptions) else '',
                                 clue1=clue1s[i] if i < len(clue1s) else '',
                                 clue2=clue2s[i] if i < len(clue2s) else '',
                                 clue3=clue3s[i] if i < len(clue3s) else '',
-                                latitude=lat, longitude=lng)
+                                latitude=lat, longitude=lng, address=address)
                 db.session.add(target)
         
         db.session.commit()
@@ -282,11 +289,13 @@ def edit_hunt(hunt_id):
         Target.query.filter_by(hunt_id=hunt_id).delete()
 
         target_images = request.files.getlist('target_image')
+        descriptions = request.form.getlist('description')
         clue1s = request.form.getlist('clue1')
         clue2s = request.form.getlist('clue2')
         clue3s = request.form.getlist('clue3')
         latitudes = request.form.getlist('latitude')
         longitudes = request.form.getlist('longitude')
+        addresses = request.form.getlist('address')
         
         for i, file in enumerate(target_images):
             if file and file.filename != '' and allowed_file(file.filename):
@@ -297,10 +306,12 @@ def edit_hunt(hunt_id):
                 
                 lat = float(latitudes[i]) if i < len(latitudes) and latitudes[i] else None
                 lng = float(longitudes[i]) if i < len(longitudes) and longitudes[i] else None
+                address = addresses[i] if i < len(addresses) else ''
                 
                 target = Target(hunt_id=hunt.id, step_number=i+1, target_image=filename,
+                                description=descriptions[i] if i < len(descriptions) else '',
                                 clue1=clue1s[i], clue2=clue2s[i], clue3=clue3s[i],
-                                latitude=lat, longitude=lng)
+                                latitude=lat, longitude=lng, address=address)
                 db.session.add(target)
         
         db.session.commit()
